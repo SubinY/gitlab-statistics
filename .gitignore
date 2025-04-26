@@ -1,4 +1,4 @@
-.xlsx
+*.xlsx
 config.py
 
 __pycache__
