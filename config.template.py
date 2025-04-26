@@ -23,7 +23,13 @@ DEFAULT_MAX_BRANCHES = 1
 # 默认输出的Excel文件名
 DEFAULT_OUTPUT_FILE = "gitlab_statistics.xlsx"
 
-# 用户名映射表，用于匹配提交作者名与用户名（可以不填）
+# 数据缩放因子
+# 正数: 乘以该系数 (例如: 2表示数据翻倍)
+# 负数: 除以该系数的绝对值 (例如: -2表示数据减半)
+# 1或0: 不做任何缩放
+SCALE_FACTOR = 1
+
+# 用户名映射表，用于匹配提交作者名与用户名
 # 格式: "提交作者名": "映射的用户名"
 USER_NAME_MAPPINGS = {
     "author1": "user1",

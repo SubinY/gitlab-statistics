@@ -5,6 +5,7 @@ import os
 from collections import defaultdict
 import re
 import sys
+import math
 
 # 尝试导入配置文件
 try:
@@ -18,6 +19,30 @@ except ImportError:
     print("错误: 找不到配置文件 (config.py)")
     print("请创建配置文件，可以复制 config.template.py 为 config.py 并填写相应参数")
     sys.exit(1)
+
+def apply_scale_factor(value, scale_factor):
+    """
+    应用缩放因子到数值
+    
+    Args:
+        value (int): 原始数值
+        scale_factor (float): 缩放因子
+        
+    Returns:
+        int: 缩放后的数值，不小于0的整数
+    """
+    if scale_factor == 0 or scale_factor == 1:
+        return value
+        
+    if scale_factor > 0:
+        # 正数：乘以系数
+        scaled_value = value * scale_factor
+    else:
+        # 负数：除以系数的绝对值
+        scaled_value = value / abs(scale_factor)
+        
+    # 取整并确保不小于0
+    return max(0, int(round(scaled_value)))
 
 def get_user_input():
     """Get user input for parameters"""
@@ -65,6 +90,18 @@ def get_user_input():
     default_output_file = getattr(config, 'DEFAULT_OUTPUT_FILE', "gitlab_statistics.xlsx")
     output_file = input(f"输出Excel文件名 (默认: {default_output_file}): ") or default_output_file
     
+    # 数据缩放因子
+    default_scale = getattr(config, 'SCALE_FACTOR', 1)
+    scale_input = input(f"数据缩放因子 (正数乘以，负数除以，默认: {default_scale}): ")
+    if scale_input.strip():
+        try:
+            scale_factor = float(scale_input)
+        except ValueError:
+            print(f"无效的缩放因子，使用默认值: {default_scale}")
+            scale_factor = default_scale
+    else:
+        scale_factor = default_scale
+    
     return {
         "gitlab_url": gitlab_url,
         "gitlab_token": gitlab_token,
@@ -74,7 +111,8 @@ def get_user_input():
         "user_names": user_names,
         "fuzzy_match": fuzzy_match,
         "max_branches": max_branches,
-        "output_file": output_file
+        "output_file": output_file,
+        "scale_factor": scale_factor
     }
 
 def list_available_projects(gl, search_term=None):
@@ -401,23 +439,30 @@ def get_commit_statistics(gitlab_url, gitlab_token, repo_paths, user_names, star
     
     return stats
 
-def export_to_excel(stats, output_file="gitlab_statistics.xlsx"):
+def export_to_excel(stats, output_file="gitlab_statistics.xlsx", scale_factor=1):
     """
     Export statistics to Excel
     
     Args:
         stats (dict): Statistics dictionary
         output_file (str): Output Excel file name
+        scale_factor (float): Scale factor for statistics
     """
     # Create user summary dataframe
     user_data = []
     for user, user_stats in stats.items():
+        # Apply scaling to all numeric values
+        total_commits = apply_scale_factor(user_stats["total_commits"], scale_factor)
+        total_additions = apply_scale_factor(user_stats["total_additions"], scale_factor)
+        total_deletions = apply_scale_factor(user_stats["total_deletions"], scale_factor)
+        total_changes = apply_scale_factor(total_additions + total_deletions, scale_factor)
+        
         user_data.append({
             "用户": user,
-            "总提交次数": user_stats["total_commits"],
-            "总增加行数": user_stats["total_additions"],
-            "总删除行数": user_stats["total_deletions"],
-            "总变更行数": user_stats["total_additions"] + user_stats["total_deletions"]
+            "总提交次数": total_commits,
+            "总增加行数": total_additions,
+            "总删除行数": total_deletions,
+            "总变更行数": total_changes
         })
     
     user_df = pd.DataFrame(user_data)
@@ -427,13 +472,19 @@ def export_to_excel(stats, output_file="gitlab_statistics.xlsx"):
     for user, user_stats in stats.items():
         for repo, repo_stats in user_stats["repos"].items():
             if repo_stats["commits"] > 0:  # Only include repos with commits
+                # Apply scaling to all numeric values
+                commits = apply_scale_factor(repo_stats["commits"], scale_factor)
+                additions = apply_scale_factor(repo_stats["additions"], scale_factor)
+                deletions = apply_scale_factor(repo_stats["deletions"], scale_factor)
+                changes = apply_scale_factor(additions + deletions, scale_factor)
+                
                 repo_data.append({
                     "用户": user,
                     "仓库": repo,
-                    "提交次数": repo_stats["commits"],
-                    "增加行数": repo_stats["additions"],
-                    "删除行数": repo_stats["deletions"],
-                    "变更行数": repo_stats["additions"] + repo_stats["deletions"]
+                    "提交次数": commits,
+                    "增加行数": additions,
+                    "删除行数": deletions,
+                    "变更行数": changes
                 })
     
     repo_df = pd.DataFrame(repo_data)
@@ -444,14 +495,20 @@ def export_to_excel(stats, output_file="gitlab_statistics.xlsx"):
         for repo, repo_stats in user_stats["repos"].items():
             for branch, branch_stats in repo_stats["branches"].items():
                 if branch_stats["commits"] > 0:  # Only include branches with commits
+                    # Apply scaling to all numeric values
+                    commits = apply_scale_factor(branch_stats["commits"], scale_factor)
+                    additions = apply_scale_factor(branch_stats["additions"], scale_factor)
+                    deletions = apply_scale_factor(branch_stats["deletions"], scale_factor)
+                    changes = apply_scale_factor(additions + deletions, scale_factor)
+                    
                     branch_data.append({
                         "用户": user,
                         "仓库": repo,
                         "分支": branch,
-                        "提交次数": branch_stats["commits"],
-                        "增加行数": branch_stats["additions"],
-                        "删除行数": branch_stats["deletions"],
-                        "变更行数": branch_stats["additions"] + branch_stats["deletions"]
+                        "提交次数": commits,
+                        "增加行数": additions,
+                        "删除行数": deletions,
+                        "变更行数": changes
                     })
     
     branch_df = pd.DataFrame(branch_data)
@@ -462,7 +519,9 @@ def export_to_excel(stats, output_file="gitlab_statistics.xlsx"):
             user_df.to_excel(writer, sheet_name="用户汇总", index=False)
             repo_df.to_excel(writer, sheet_name="仓库详情", index=False)
             branch_df.to_excel(writer, sheet_name="分支详情", index=False)
-            
+        
+        if scale_factor != 1:
+            print(f"数据已按比例调整 (缩放因子: {scale_factor})")
         print(f"统计数据已导出到 {output_file}")
         return output_file
     except Exception as e:
@@ -517,6 +576,7 @@ def main():
     print(f"用户: {', '.join(params['user_names'])}")
     print(f"用户名模糊匹配: {'启用' if params['fuzzy_match'] else '禁用'}")
     print(f"最大分支数: {params['max_branches']}")
+    print(f"数据缩放因子: {params['scale_factor']}")
     
     # Get statistics
     stats = get_commit_statistics(
@@ -533,7 +593,7 @@ def main():
     # Validate statistics
     if validate_statistics(stats):
         # Export to Excel
-        output_file = export_to_excel(stats, params['output_file'])
+        output_file = export_to_excel(stats, params['output_file'], params['scale_factor'])
         if output_file:
             print(f"\n分析完成! 结果已保存到 {output_file}")
     else:

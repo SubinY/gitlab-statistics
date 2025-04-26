@@ -9,6 +9,7 @@
 - 支持用户名模糊匹配，解决提交作者名和显示名不匹配的问题
 - 自动识别仓库最活跃的分支
 - 导出统计结果到Excel文件，包含用户汇总、仓库详情和分支详情三个表格
+- 支持数据缩放功能，可以按指定比例调整统计结果
 - 提供交互式命令行界面，易于使用
 
 ## 安装说明
@@ -76,6 +77,7 @@ python gitlab_statistics.py
 - `DEFAULT_FUZZY_MATCH`: 是否默认启用模糊匹配
 - `DEFAULT_MAX_BRANCHES`: 每个仓库默认分析的最大分支数
 - `DEFAULT_OUTPUT_FILE`: 默认输出的Excel文件名
+- `SCALE_FACTOR`: 数据缩放因子，用于调整统计结果
 - `USER_NAME_MAPPINGS`: 用户名映射表，用于匹配不同形式的用户名
 
 ## 输出结果说明
@@ -106,3 +108,7 @@ python gitlab_statistics.py
 1. 检查用户名是否与GitLab提交记录中的作者名一致
 2. 在`config.py`的`USER_NAME_MAPPINGS`中添加作者名到用户名的映射
 3. 确认指定的日期范围内是否有该用户的提交 
+
+## 彩蛋👺👺👺
+
+被无中生有才会有这个工具，为了无声的呐喊代码中添加了一个缩放因子，自行体会
